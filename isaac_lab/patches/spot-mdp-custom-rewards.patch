@@ -1,0 +1,492 @@
+diff --git a/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/__init__.pyi b/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/__init__.pyi
+index c303f58c75..98f7e4a3d7 100644
+--- a/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/__init__.pyi
++++ b/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/__init__.pyi
+@@ -5,36 +5,62 @@
+ 
+ __all__ = [
+     "reset_joints_around_default",
++    "ContactTimeSymmetryPenalty",
++    "FootContactSymmetryPenalty",
++    "FootStrideReward",
+     "GaitReward",
++    "JointDiagonalSyncPenalty",
++    "JointMirrorSymmetryPenalty",
+     "action_smoothness_penalty",
+     "air_time_reward",
+     "air_time_variance_penalty",
+     "base_angular_velocity_reward",
++    "base_height_floor_penalty",
++    "base_height_lock_penalty",
++    "base_height_penalty",
+     "base_linear_velocity_reward",
+     "base_motion_penalty",
+     "base_orientation_penalty",
++    "base_pitch_penalty",
+     "foot_clearance_reward",
++    "foot_duty_balance_penalty",
++    "foot_lateral_symmetry_penalty",
+     "foot_slip_penalty",
++    "foot_stride_reward",
+     "joint_acceleration_penalty",
+     "joint_position_penalty",
+     "joint_torques_penalty",
+     "joint_velocity_penalty",
++    "knee_hyperflexion_penalty",
+ ]
+ 
+ from .events import reset_joints_around_default
+ from .rewards import (
++    ContactTimeSymmetryPenalty,
++    FootContactSymmetryPenalty,
++    FootStrideReward,
+     GaitReward,
++    JointDiagonalSyncPenalty,
++    JointMirrorSymmetryPenalty,
+     action_smoothness_penalty,
+     air_time_reward,
+     air_time_variance_penalty,
+     base_angular_velocity_reward,
++    base_height_floor_penalty,
++    base_height_lock_penalty,
++    base_height_penalty,
+     base_linear_velocity_reward,
+     base_motion_penalty,
+     base_orientation_penalty,
++    base_pitch_penalty,
+     foot_clearance_reward,
++    foot_duty_balance_penalty,
++    foot_lateral_symmetry_penalty,
+     foot_slip_penalty,
++    foot_stride_reward,
+     joint_acceleration_penalty,
+     joint_position_penalty,
+     joint_torques_penalty,
+     joint_velocity_penalty,
++    knee_hyperflexion_penalty,
+ )
+diff --git a/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py b/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py
+index 81e72ee507..89bf3b6bf8 100644
+--- a/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py
++++ b/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py
+@@ -17,6 +17,7 @@ import torch
+ import warp as wp
+ 
+ from isaaclab.managers import ManagerTermBase, SceneEntityCfg
++from isaaclab.utils.math import quat_apply_inverse
+ 
+ if TYPE_CHECKING:
+     from isaaclab.assets import Articulation, RigidObject
+@@ -180,6 +181,181 @@ class GaitReward(ManagerTermBase):
+         return torch.exp(-(se_act_0 + se_act_1) / self.std)
+ 
+ 
++class FootContactSymmetryPenalty(ManagerTermBase):
++    """Penalize asymmetric air time between left (FL, HL) and right (FR, HR) foot pairs.
++
++    Fires when one side steps significantly more than the other, directly targeting
++    left/right propulsion imbalance. Returns zero during standing (below velocity_threshold).
++    """
++
++    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
++        super().__init__(cfg, env)
++        self.velocity_threshold: float = cfg.params["velocity_threshold"]
++        self.contact_sensor: ContactSensor = env.scene.sensors[cfg.params["sensor_cfg"].name]
++        self.asset: Articulation = env.scene[cfg.params["asset_cfg"].name]
++        self.left_ids = self.contact_sensor.find_sensors(cfg.params["left_foot_names"])[0]
++        self.right_ids = self.contact_sensor.find_sensors(cfg.params["right_foot_names"])[0]
++
++    def __call__(
++        self,
++        env: ManagerBasedRLEnv,
++        velocity_threshold: float,
++        left_foot_names: list[str],
++        right_foot_names: list[str],
++        asset_cfg: SceneEntityCfg,
++        sensor_cfg: SceneEntityCfg,
++    ) -> torch.Tensor:
++        air_time = wp.to_torch(self.contact_sensor.data.current_air_time)
++        left_air = air_time[:, self.left_ids].sum(dim=1)
++        right_air = air_time[:, self.right_ids].sum(dim=1)
++        penalty = torch.abs(left_air - right_air)
++        cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
++        body_vel = torch.linalg.norm(wp.to_torch(self.asset.data.root_lin_vel_b)[:, :2], dim=1)
++        return torch.where(
++            torch.logical_or(cmd > 0.0, body_vel > self.velocity_threshold), penalty, 0.0
++        )
++
++
++class ContactTimeSymmetryPenalty(ManagerTermBase):
++    """Penalize asymmetric ground-contact time between two configured foot groups.
++
++    Uses ``last_contact_time`` — the duration of each foot's most recent COMPLETED stance —
++    which is phase-robust: a symmetric trot scores ~0 regardless of which group is currently
++    up. (Using the instantaneous ``current_contact_time`` instead makes anti-phase diagonal
++    groups differ by construction, so the penalty would measure the trot rhythm, not the
++    asymmetry, and could never reach zero.) Durations are clipped per foot so a long stance
++    cannot make the penalty explode. Zero below velocity_threshold.
++    """
++
++    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
++        super().__init__(cfg, env)
++        self.velocity_threshold: float = cfg.params["velocity_threshold"]
++        self.max_contact_time: float = cfg.params["max_contact_time"]
++        self.contact_sensor: ContactSensor = env.scene.sensors[cfg.params["sensor_cfg"].name]
++        self.asset: Articulation = env.scene[cfg.params["asset_cfg"].name]
++        self.left_ids = self.contact_sensor.find_sensors(cfg.params["left_foot_names"])[0]
++        self.right_ids = self.contact_sensor.find_sensors(cfg.params["right_foot_names"])[0]
++
++    def __call__(
++        self,
++        env: ManagerBasedRLEnv,
++        velocity_threshold: float,
++        max_contact_time: float,
++        left_foot_names: list[str],
++        right_foot_names: list[str],
++        asset_cfg: SceneEntityCfg,
++        sensor_cfg: SceneEntityCfg,
++    ) -> torch.Tensor:
++        contact_time = torch.clip(
++            wp.to_torch(self.contact_sensor.data.last_contact_time), max=self.max_contact_time
++        )
++        left_contact = contact_time[:, self.left_ids].sum(dim=1)
++        right_contact = contact_time[:, self.right_ids].sum(dim=1)
++        penalty = torch.abs(left_contact - right_contact)
++        cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
++        body_vel = torch.linalg.norm(wp.to_torch(self.asset.data.root_lin_vel_b)[:, :2], dim=1)
++        return torch.where(
++            torch.logical_or(cmd > 0.0, body_vel > self.velocity_threshold), penalty, 0.0
++        )
++
++
++class JointMirrorSymmetryPenalty(ManagerTermBase):
++    """Penalize left/right asymmetry in time-averaged joint angles.
++
++    Compares a running average of each left-leg joint against its mirrored right-leg
++    counterpart (e.g. FL_HipY vs FR_HipY). The averaging window washes out trot phase —
++    left and right legs are 180 deg out of phase, so instantaneous angle matching would
++    punish correct trotting. An evenly mirrored gait pays zero; a side that habitually
++    operates more bent or less swung pays every step.
++    """
++
++    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
++        super().__init__(cfg, env)
++        self.asset: Articulation = env.scene[cfg.params["asset_cfg"].name]
++        self.left_ids = self.asset.find_joints(cfg.params["left_joint_names"], preserve_order=True)[0]
++        self.right_ids = self.asset.find_joints(cfg.params["right_joint_names"], preserve_order=True)[0]
++        self.alpha: float = env.step_dt / cfg.params["avg_window"]
++        default_pos = wp.to_torch(self.asset.data.default_joint_pos)
++        self._left_avg = default_pos[:, self.left_ids].clone()
++        self._right_avg = default_pos[:, self.right_ids].clone()
++        # amplitude = running average of |q - mean|; a lazy joint and an active one
++        # can share a mean, so means alone are blind to one side moving less.
++        self._left_amp = torch.zeros_like(self._left_avg)
++        self._right_amp = torch.zeros_like(self._right_avg)
++
++    def reset(self, env_ids=None):
++        if env_ids is None:
++            env_ids = slice(None)
++        default_pos = wp.to_torch(self.asset.data.default_joint_pos)
++        self._left_avg[env_ids] = default_pos[env_ids][:, self.left_ids]
++        self._right_avg[env_ids] = default_pos[env_ids][:, self.right_ids]
++        self._left_amp[env_ids] = 0.0
++        self._right_amp[env_ids] = 0.0
++
++    def __call__(
++        self,
++        env: ManagerBasedRLEnv,
++        avg_window: float,
++        left_joint_names: list[str],
++        right_joint_names: list[str],
++        asset_cfg: SceneEntityCfg,
++    ) -> torch.Tensor:
++        joint_pos = wp.to_torch(self.asset.data.joint_pos)
++        left_pos = joint_pos[:, self.left_ids]
++        right_pos = joint_pos[:, self.right_ids]
++        self._left_avg += self.alpha * (left_pos - self._left_avg)
++        self._right_avg += self.alpha * (right_pos - self._right_avg)
++        self._left_amp += self.alpha * (torch.abs(left_pos - self._left_avg) - self._left_amp)
++        self._right_amp += self.alpha * (torch.abs(right_pos - self._right_avg) - self._right_amp)
++        mean_gap = torch.sum(torch.abs(self._left_avg - self._right_avg), dim=1)
++        amp_gap = torch.sum(torch.abs(self._left_amp - self._right_amp), dim=1)
++        return mean_gap + amp_gap
++
++
++class JointDiagonalSyncPenalty(ManagerTermBase):
++    """Penalize instantaneous waveform mismatch between diagonal partner joints.
++
++    In a trot the diagonal pairs (FL+HR, FR+HL) move in phase, so their joint angles can
++    be compared at every timestep — unlike mirror pairs, which are 180 deg out of phase.
++    Angles are mean-centered (running average) before comparison so the natural front/rear
++    posture offset is not penalized, only the motion waveforms being out of sync.
++    """
++
++    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
++        super().__init__(cfg, env)
++        self.asset: Articulation = env.scene[cfg.params["asset_cfg"].name]
++        self.a_ids = self.asset.find_joints(cfg.params["pair_a_joint_names"], preserve_order=True)[0]
++        self.b_ids = self.asset.find_joints(cfg.params["pair_b_joint_names"], preserve_order=True)[0]
++        self.alpha: float = env.step_dt / cfg.params["avg_window"]
++        default_pos = wp.to_torch(self.asset.data.default_joint_pos)
++        self._a_avg = default_pos[:, self.a_ids].clone()
++        self._b_avg = default_pos[:, self.b_ids].clone()
++
++    def reset(self, env_ids=None):
++        if env_ids is None:
++            env_ids = slice(None)
++        default_pos = wp.to_torch(self.asset.data.default_joint_pos)
++        self._a_avg[env_ids] = default_pos[env_ids][:, self.a_ids]
++        self._b_avg[env_ids] = default_pos[env_ids][:, self.b_ids]
++
++    def __call__(
++        self,
++        env: ManagerBasedRLEnv,
++        avg_window: float,
++        pair_a_joint_names: list[str],
++        pair_b_joint_names: list[str],
++        asset_cfg: SceneEntityCfg,
++    ) -> torch.Tensor:
++        joint_pos = wp.to_torch(self.asset.data.joint_pos)
++        a_pos = joint_pos[:, self.a_ids]
++        b_pos = joint_pos[:, self.b_ids]
++        self._a_avg += self.alpha * (a_pos - self._a_avg)
++        self._b_avg += self.alpha * (b_pos - self._b_avg)
++        a_centered = a_pos - self._a_avg
++        b_centered = b_pos - self._b_avg
++        return torch.sum(torch.abs(a_centered - b_centered), dim=1)
++
++
+ def foot_clearance_reward(
+     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_height: float, std: float, tanh_mult: float
+ ) -> torch.Tensor:
+@@ -193,6 +369,54 @@ def foot_clearance_reward(
+     return torch.exp(-torch.sum(reward, dim=1) / std)
+ 
+ 
++def base_height_penalty(
++    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_height: float
++) -> torch.Tensor:
++    """Penalize squared deviation of the body's Z-height from a target standing height."""
++    asset: Articulation = env.scene[asset_cfg.name]
++    return torch.square(wp.to_torch(asset.data.root_pos_w)[:, 2] - target_height)
++
++
++def knee_hyperflexion_penalty(
++    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, max_angle: float
++) -> torch.Tensor:
++    """Penalize knee joints for exceeding max_angle (too bent / hyperflexed).
++
++    Linear penalty on the excess above max_angle, summed across all matched joints.
++    Pass asset_cfg with joint_names=".*Knee.*" to target all four knees.
++    """
++    asset: Articulation = env.scene[asset_cfg.name]
++    knee_pos = wp.to_torch(asset.data.joint_pos)[:, asset_cfg.joint_ids]
++    return torch.sum(torch.clamp(knee_pos - max_angle, min=0.0), dim=1)
++
++
++def base_height_lock_penalty(
++    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_height: float
++) -> torch.Tensor:
++    """Penalize absolute deviation of body height from target_height (two-sided).
++
++    Linear (not squared) so the gradient stays strong even at small deficits.
++    """
++    asset: Articulation = env.scene[asset_cfg.name]
++    h = wp.to_torch(asset.data.root_pos_w)[:, 2]
++    return torch.abs(h - target_height)
++
++
++def base_height_floor_penalty(
++    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, min_height: float
++) -> torch.Tensor:
++    """Penalize only when body height drops below min_height; zero above it.
++
++    Unlike base_height_penalty, there is no fixed target to hack toward — the robot is
++    free to stand at any height above min_height with no additional penalty.
++    """
++    asset: Articulation = env.scene[asset_cfg.name]
++    h = wp.to_torch(asset.data.root_pos_w)[:, 2]
++    # Linear (not squared) so the gradient is strong even at small deficits.
++    # Squared penalty near a 2–3 cm deficit gives ~0.001 per step — negligible vs gait rewards.
++    return torch.clamp(min_height - h, min=0.0)
++
++
+ ##
+ # Regularization Penalties
+ ##
+@@ -237,6 +461,175 @@ def base_orientation_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg)
+     return torch.linalg.norm((wp.to_torch(asset.data.projected_gravity_b)[:, :2]), dim=1)
+ 
+ 
++def base_pitch_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
++    """Penalize fore-aft torso lean (pitch), isolated from roll.
++
++    The x-component of projected gravity in the body frame is the forward/backward
++    tilt; it is zero when the torso is level and grows as the robot pitches nose-down
++    or nose-up. Because the hips are rigid on the torso, this equals the front-vs-rear
++    hip-height difference scaled by body length — a direct "front-rear leveling" term.
++    Unlike :func:`base_orientation_penalty`, it leaves roll unpenalized.
++    """
++    asset: RigidObject = env.scene[asset_cfg.name]
++    return torch.abs(wp.to_torch(asset.data.projected_gravity_b)[:, 0])
++
++
++def foot_duty_balance_penalty(
++    env: ManagerBasedRLEnv,
++    sensor_cfg: SceneEntityCfg,
++    asset_cfg: SceneEntityCfg,
++    max_time: float,
++    velocity_threshold: float,
++) -> torch.Tensor:
++    """Penalize per-foot imbalance between stance and swing duration (drives duty toward 0.5).
++
++    For each foot, ``|last_contact_time - last_air_time|`` is zero only when it spends equal
++    time on the ground and in the air — duty factor 0.5, the even rhythm of a symmetric trot.
++    It fires when a foot acts as constant support (long stance, short swing) or the reverse,
++    which pair-difference symmetry terms miss. Durations are clipped at ``max_time``; the
++    penalty is zero below ``velocity_threshold`` (standing = all feet down is not penalized).
++    """
++    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
++    asset: Articulation = env.scene[asset_cfg.name]
++    stance = torch.clip(wp.to_torch(contact_sensor.data.last_contact_time)[:, sensor_cfg.body_ids], max=max_time)
++    swing = torch.clip(wp.to_torch(contact_sensor.data.last_air_time)[:, sensor_cfg.body_ids], max=max_time)
++    penalty = torch.sum(torch.abs(stance - swing), dim=1)
++    cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
++    body_vel = torch.linalg.norm(wp.to_torch(asset.data.root_lin_vel_b)[:, :2], dim=1)
++    return torch.where(torch.logical_or(cmd > 0.0, body_vel > velocity_threshold), penalty, 0.0)
++
++
++def foot_stride_reward(
++    env: ManagerBasedRLEnv,
++    asset_cfg: SceneEntityCfg,
++    velocity_threshold: float,
++) -> torch.Tensor:
++    """Reward fore-aft foot excursion relative to the base (stride length / propulsion).
++
++    For each foot, the fore-aft (base-frame x) component of its velocity *relative to the
++    base* is the rate at which the foot protracts during swing and recedes during stance
++    along the body. Its magnitude integrated over a stride equals stride length, so
++    rewarding it pressures every leg to swing its hip fore-aft rather than pump vertically
++    in place. Measuring relative to the base makes passive body translation cancel: a foot
++    planted while the torso coasts forward earns nothing. Discrimination is partial, not
++    absolute — a knee-pumping leg still produces some fore-aft foot velocity, so the parked
++    HR leg reads lowest but not zero (measured ~0.40 vs ~0.55-0.60 m/s for healthy legs).
++    The reward is summed over feet, so the lowest leg carries the steepest marginal
++    gradient; it is zeroed below ``velocity_threshold`` so standing is not rewarded.
++    """
++    asset: Articulation = env.scene[asset_cfg.name]
++    num_feet = len(asset_cfg.body_ids)
++    foot_vel_w = wp.to_torch(asset.data.body_lin_vel_w)[:, asset_cfg.body_ids, :]  # (N, F, 3)
++    base_vel_w = wp.to_torch(asset.data.root_lin_vel_w)[:, None, :]  # (N, 1, 3)
++    rel_vel_w = foot_vel_w - base_vel_w  # foot velocity relative to base, world frame
++    # rotate into the base frame to isolate the fore-aft (x) component
++    quat = wp.to_torch(asset.data.root_quat_w)  # (N, 4)
++    quat_exp = quat[:, None, :].expand(-1, num_feet, -1).reshape(-1, 4)
++    rel_vel_b = quat_apply_inverse(quat_exp, rel_vel_w.reshape(-1, 3)).reshape(-1, num_feet, 3)
++    fore_aft_speed = torch.abs(rel_vel_b[:, :, 0])  # (N, F)
++    reward = torch.sum(fore_aft_speed, dim=1)  # (N,)
++    cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
++    body_vel = torch.linalg.norm(wp.to_torch(asset.data.root_lin_vel_b)[:, :2], dim=1)
++    return torch.where(torch.logical_or(cmd > 0.0, body_vel > velocity_threshold), reward, 0.0)
++
++
++class FootStrideReward(ManagerTermBase):
++    """Reward per-foot stride LENGTH (jitter-proof) — peak-to-peak fore-aft foot
++    displacement relative to the base over a short window.
++
++    Supersedes :func:`foot_stride_reward`'s instantaneous ``|velocity|`` form, which the
++    policy farmed by shaking (high velocity, ~zero net displacement -> the source of the
++    right-gait shake). Stride length is the peak-to-peak of each foot's base-frame fore-aft
++    position over ``window`` seconds: a real stride has large peak-to-peak, jitter has tiny
++    peak-to-peak, so shaking earns nothing while genuine hip swing is still rewarded.
++    Summed over feet, velocity-gated. The window buffer is reset per-env on episode reset
++    (seeded to the current position) so a reset teleport never inflates the peak-to-peak.
++    """
++
++    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
++        super().__init__(cfg, env)
++        self.asset: Articulation = env.scene[cfg.params["asset_cfg"].name]
++        self.foot_ids, _ = self.asset.find_bodies(cfg.params["foot_names"], preserve_order=True)
++        self.nf = len(self.foot_ids)
++        self.velocity_threshold: float = cfg.params["velocity_threshold"]
++        self.n_window = max(2, int(round(cfg.params["window"] / env.step_dt)))
++        self.buf = torch.zeros(env.num_envs, self.n_window, self.nf, device=env.device)
++        self.ptr = 0
++
++    def _foot_fore_aft(self) -> torch.Tensor:
++        """Base-frame fore-aft (x) position of each tracked foot, shape (num_envs, nf)."""
++        root_pos = wp.to_torch(self.asset.data.root_pos_w)[:, None, :]
++        quat = wp.to_torch(self.asset.data.root_quat_w)
++        foot_pos = wp.to_torch(self.asset.data.body_pos_w)[:, self.foot_ids, :]
++        rel = foot_pos - root_pos
++        q = quat[:, None, :].expand(-1, self.nf, -1).reshape(-1, 4)
++        rel_b = quat_apply_inverse(q, rel.reshape(-1, 3)).reshape(-1, self.nf, 3)
++        return rel_b[:, :, 0]
++
++    def reset(self, env_ids: torch.Tensor | None = None) -> None:
++        x = self._foot_fore_aft()
++        if env_ids is None:
++            self.buf[:] = x.unsqueeze(1)
++        else:
++            self.buf[env_ids] = x[env_ids].unsqueeze(1)
++
++    def __call__(
++        self,
++        env: ManagerBasedRLEnv,
++        asset_cfg: SceneEntityCfg,
++        foot_names: list[str],
++        velocity_threshold: float,
++        window: float,
++    ) -> torch.Tensor:
++        self.buf[:, self.ptr, :] = self._foot_fore_aft()
++        self.ptr = (self.ptr + 1) % self.n_window
++        stride = self.buf.max(dim=1).values - self.buf.min(dim=1).values  # (num_envs, nf)
++        reward = torch.sum(stride, dim=1)
++        cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
++        body_vel = torch.linalg.norm(wp.to_torch(self.asset.data.root_lin_vel_b)[:, :2], dim=1)
++        return torch.where(torch.logical_or(cmd > 0.0, body_vel > velocity_threshold), reward, 0.0)
++
++
++def foot_lateral_symmetry_penalty(
++    env: ManagerBasedRLEnv,
++    asset_cfg: SceneEntityCfg,
++    left_foot_names: list[str],
++    right_foot_names: list[str],
++    velocity_threshold: float,
++) -> torch.Tensor:
++    """Penalize left/right stance-width asymmetry (hip-abduction symmetry, measured at the foot).
++
++    For each mirror pair (``left_foot_names[i]`` with ``right_foot_names[i]``, e.g. FL↔FR and
++    HL↔HR) the feet are located in the BASE frame and their lateral (Y) offsets are compared.
++    A symmetric stance is mirrored about the centerline, so ``Y_left = -Y_right`` and their sum
++    is zero; ``|Y_left + Y_right|`` fires when one side plants wider than the other. Measured at
++    the foot (not the HipX joint) because foot lateral placement is what creates the yaw moment,
++    and raw HipX values are sign-convention tangled across legs. Left-wide / right-tucked stance
++    (the observed FR-tucked bias) produces a steady yaw that this term cancels. Zeroed below
++    ``velocity_threshold`` so standing is not penalized.
++    """
++    asset: Articulation = env.scene[asset_cfg.name]
++    left_ids, _ = asset.find_bodies(left_foot_names, preserve_order=True)
++    right_ids, _ = asset.find_bodies(right_foot_names, preserve_order=True)
++    root_pos = wp.to_torch(asset.data.root_pos_w)[:, None, :]  # (N, 1, 3)
++    quat = wp.to_torch(asset.data.root_quat_w)  # (N, 4)
++    body_pos = wp.to_torch(asset.data.body_pos_w)  # (N, B, 3)
++
++    def _base_frame_y(ids: list[int]) -> torch.Tensor:
++        rel = body_pos[:, ids, :] - root_pos  # (N, F, 3), foot relative to base in world frame
++        n = len(ids)
++        q = quat[:, None, :].expand(-1, n, -1).reshape(-1, 4)
++        rel_b = quat_apply_inverse(q, rel.reshape(-1, 3)).reshape(-1, n, 3)
++        return rel_b[:, :, 1]  # (N, F) lateral offset in base frame
++
++    y_left = _base_frame_y(left_ids)
++    y_right = _base_frame_y(right_ids)
++    penalty = torch.sum(torch.abs(y_left + y_right), dim=1)  # (N,)
++    cmd = torch.linalg.norm(env.command_manager.get_command("base_velocity"), dim=1)
++    body_vel = torch.linalg.norm(wp.to_torch(asset.data.root_lin_vel_b)[:, :2], dim=1)
++    return torch.where(torch.logical_or(cmd > 0.0, body_vel > velocity_threshold), penalty, 0.0)
++
++
+ def foot_slip_penalty(
+     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg, threshold: float
+ ) -> torch.Tensor:
