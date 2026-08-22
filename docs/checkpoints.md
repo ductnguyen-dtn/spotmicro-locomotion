@@ -490,7 +490,7 @@ Verification plan:
 
 Run diagnostic and compare rear_left x_range, rear_left z_range, yaw mean_abs, base_y mean_abs, and visual replay.
 
-——————————————————————————————————————————
+---
 
 Actual result:
 
@@ -650,7 +650,7 @@ Next experiment:
 
 Do not continue from this checkpoint. Return to current best. Investigate whether heading_drift reward is measuring the same yaw as the diagnostic, then either strengthen heading_drift or improve the yaw-drift reward implementation.
 
-——————————————————————————————————————————
+---
 
 Actual result:
 
@@ -912,9 +912,9 @@ Candidate for new checkpoint, but not perfect. Promotion depends on whether the 
 
 ---
 
-## Checkpoint 17: Experiment — Rear-Foot Symmetry Reward and Remaining Rear-Left Drag
+## Checkpoint 17: Experiment: Rear-Foot Symmetry Reward and Remaining Rear-Left Drag
 
-Experiment Log — Rear-Foot Symmetry Reward and Remaining Rear-Left Drag
+Experiment Log: Rear-Foot Symmetry Reward and Remaining Rear-Left Drag
 
 Context
 
@@ -940,7 +940,7 @@ joint_pos_mean_delta ≈ -0.132
 
 The config/runtime diagnostic showed that joint limits and default positions were symmetric between the rear-left and rear-right foot joints, so the asymmetry was unlikely to be caused by a hardcoded default-position or joint-limit offset. The working hypothesis was that the learned policy had developed a biased rear-left foot command.
 
-Experiment 1 — Rear-Foot Joint Symmetry Reward
+Experiment 1: Rear-Foot Joint Symmetry Reward
 
 Hypothesis
 
@@ -1040,7 +1040,7 @@ terrain_out_of_bounds = 0.0000
 
 This means the robot survived full episodes and did not go out of bounds during training.
 
-Diagnostic Result — model_299.pt
+Diagnostic Result: model_299.pt
 
 Diagnostic checkpoint:
 
@@ -1412,7 +1412,7 @@ Promotion condition:
 
 This folder can be renamed from “Checkpoint 18 Candidate” to “Checkpoint 18” only after final side-by-side visual comparison with the CP17 current best confirms that this model is clearly better overall.
 
-——————————————————————————————————————————
+---
 
 Training result:
 
@@ -1442,7 +1442,7 @@ Training log looks promising, but this does not prove better gait. Diagnostic mu
 
 ---
 
-## Checkpoint 18: Checkpoint 18 — Current Best Confirmed Baseline
+## Checkpoint 18: Current Best Confirmed Baseline
 
 Improved Rear-Left Lift with Better Path/Yaw Control
 
@@ -1760,7 +1760,7 @@ This 0.04 experiment is rejected but valuable because it shows the limit of simp
 
 ## Checkpoint 18: Experiment - Rear-Right Overdominance Penalty from CP18
 
-Experiment Documentation — Rear-Right Overdominance Penalty from CP18
+Experiment Documentation: Rear-Right Overdominance Penalty from CP18
 
 Status
 
@@ -2292,7 +2292,7 @@ The robot may look less natural even if the rear_left x_range improves.
 
 The policy may still underuse rear-left because action_smoothness and joint penalties make smaller motion easier.
 
-——————————————————————————————————————————
+---
 
 Actual result:
 
@@ -2316,7 +2316,7 @@ Next step:
 
 Run visual replay on model_899.pt and compare it directly against the CP18 Candidate model_598.pt.
 
-——————————————————————————————————————————
+---
 
 Visual replay observation:
 

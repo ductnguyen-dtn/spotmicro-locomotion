@@ -66,7 +66,7 @@ index c303f58c75..98f7e4a3d7 100644
 +    knee_hyperflexion_penalty,
  )
 diff --git a/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py b/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py
-index 81e72ee507..89bf3b6bf8 100644
+index 81e72ee507..c69687f4ab 100644
 --- a/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py
 +++ b/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/mdp/rewards.py
 @@ -17,6 +17,7 @@ import torch
@@ -119,7 +119,7 @@ index 81e72ee507..89bf3b6bf8 100644
 +class ContactTimeSymmetryPenalty(ManagerTermBase):
 +    """Penalize asymmetric ground-contact time between two configured foot groups.
 +
-+    Uses ``last_contact_time`` — the duration of each foot's most recent COMPLETED stance —
++    Uses ``last_contact_time``, the duration of each foot's most recent COMPLETED stance , 
 +    which is phase-robust: a symmetric trot scores ~0 regardless of which group is currently
 +    up. (Using the instantaneous ``current_contact_time`` instead makes anti-phase diagonal
 +    groups differ by construction, so the penalty would measure the trot rhythm, not the
@@ -163,7 +163,7 @@ index 81e72ee507..89bf3b6bf8 100644
 +    """Penalize left/right asymmetry in time-averaged joint angles.
 +
 +    Compares a running average of each left-leg joint against its mirrored right-leg
-+    counterpart (e.g. FL_HipY vs FR_HipY). The averaging window washes out trot phase —
++    counterpart (e.g. FL_HipY vs FR_HipY). The averaging window washes out trot phase , 
 +    left and right legs are 180 deg out of phase, so instantaneous angle matching would
 +    punish correct trotting. An evenly mirrored gait pays zero; a side that habitually
 +    operates more bent or less swung pays every step.
@@ -216,7 +216,7 @@ index 81e72ee507..89bf3b6bf8 100644
 +    """Penalize instantaneous waveform mismatch between diagonal partner joints.
 +
 +    In a trot the diagonal pairs (FL+HR, FR+HL) move in phase, so their joint angles can
-+    be compared at every timestep — unlike mirror pairs, which are 180 deg out of phase.
++    be compared at every timestep, unlike mirror pairs, which are 180 deg out of phase.
 +    Angles are mean-centered (running average) before comparison so the natural front/rear
 +    posture offset is not penalized, only the motion waveforms being out of sync.
 +    """
@@ -301,13 +301,13 @@ index 81e72ee507..89bf3b6bf8 100644
 +) -> torch.Tensor:
 +    """Penalize only when body height drops below min_height; zero above it.
 +
-+    Unlike base_height_penalty, there is no fixed target to hack toward — the robot is
++    Unlike base_height_penalty, there is no fixed target to hack toward, the robot is
 +    free to stand at any height above min_height with no additional penalty.
 +    """
 +    asset: Articulation = env.scene[asset_cfg.name]
 +    h = wp.to_torch(asset.data.root_pos_w)[:, 2]
 +    # Linear (not squared) so the gradient is strong even at small deficits.
-+    # Squared penalty near a 2–3 cm deficit gives ~0.001 per step — negligible vs gait rewards.
++    # Squared penalty near a 2–3 cm deficit gives ~0.001 per step, negligible vs gait rewards.
 +    return torch.clamp(min_height - h, min=0.0)
 +
 +
@@ -324,7 +324,7 @@ index 81e72ee507..89bf3b6bf8 100644
 +    The x-component of projected gravity in the body frame is the forward/backward
 +    tilt; it is zero when the torso is level and grows as the robot pitches nose-down
 +    or nose-up. Because the hips are rigid on the torso, this equals the front-vs-rear
-+    hip-height difference scaled by body length — a direct "front-rear leveling" term.
++    hip-height difference scaled by body length, a direct "front-rear leveling" term.
 +    Unlike :func:`base_orientation_penalty`, it leaves roll unpenalized.
 +    """
 +    asset: RigidObject = env.scene[asset_cfg.name]
@@ -341,7 +341,7 @@ index 81e72ee507..89bf3b6bf8 100644
 +    """Penalize per-foot imbalance between stance and swing duration (drives duty toward 0.5).
 +
 +    For each foot, ``|last_contact_time - last_air_time|`` is zero only when it spends equal
-+    time on the ground and in the air — duty factor 0.5, the even rhythm of a symmetric trot.
++    time on the ground and in the air, duty factor 0.5, the even rhythm of a symmetric trot.
 +    It fires when a foot acts as constant support (long stance, short swing) or the reverse,
 +    which pair-difference symmetry terms miss. Durations are clipped at ``max_time``; the
 +    penalty is zero below ``velocity_threshold`` (standing = all feet down is not penalized).
@@ -369,7 +369,7 @@ index 81e72ee507..89bf3b6bf8 100644
 +    rewarding it pressures every leg to swing its hip fore-aft rather than pump vertically
 +    in place. Measuring relative to the base makes passive body translation cancel: a foot
 +    planted while the torso coasts forward earns nothing. Discrimination is partial, not
-+    absolute — a knee-pumping leg still produces some fore-aft foot velocity, so the parked
++    absolute, a knee-pumping leg still produces some fore-aft foot velocity, so the parked
 +    HR leg reads lowest but not zero (measured ~0.40 vs ~0.55-0.60 m/s for healthy legs).
 +    The reward is summed over feet, so the lowest leg carries the steepest marginal
 +    gradient; it is zeroed below ``velocity_threshold`` so standing is not rewarded.
@@ -391,7 +391,7 @@ index 81e72ee507..89bf3b6bf8 100644
 +
 +
 +class FootStrideReward(ManagerTermBase):
-+    """Reward per-foot stride LENGTH (jitter-proof) — peak-to-peak fore-aft foot
++    """Reward per-foot stride LENGTH (jitter-proof), peak-to-peak fore-aft foot
 +    displacement relative to the base over a short window.
 +
 +    Supersedes :func:`foot_stride_reward`'s instantaneous ``|velocity|`` form, which the

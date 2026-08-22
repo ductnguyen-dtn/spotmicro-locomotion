@@ -52,9 +52,8 @@ step 0    obs_base_lin_vel: [-0.875  0.124 -0.692]
 step 150  obs_base_lin_vel: [-0.316  0.772 -0.065]
 ```
 
-The lesson worth keeping is that the symptom pointed at the network and the cause was in
-the asset. Checking that the observation actually responds to the action is cheaper than
-another training run.
+The symptom pointed at the network and the cause was in the asset. Checking that the
+observation actually responds to the action is cheaper than another training run.
 
 ## Getting to a walking gait
 
