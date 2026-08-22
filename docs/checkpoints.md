@@ -1,12 +1,11 @@
 # Training checkpoints
 
-Working notes kept while training the SpotMicro locomotion policy in Isaac Lab, from the
-first broken policy through to the current best confirmed baseline. Each entry records what
-changed, why, and what the resulting gait actually looked like, including the experiments
-that were rejected.
+Working notes kept while training the SpotMicro locomotion policy in Isaac Lab,
+from the first broken policy through to the current best confirmed baseline. Each
+entry records what changed, why, and what the gait actually looked like, including
+the experiments that were rejected.
 
-Per-checkpoint config snapshots referenced in these notes are in
-[`../config_snapshots/`](../config_snapshots/).
+Per-checkpoint config snapshots are in [`../config_snapshots/`](../config_snapshots/).
 
 ---
 
@@ -50,7 +49,7 @@ Per-checkpoint config snapshots referenced in these notes are in
 
 ---
 
-## Checkpoint 3: Root Joint Removed, Wrong Mass_Inertia
+## Checkpoint 3: Root Joint Removed, Wrong Mass/Inertia
 
 **Checkpoint path:** logs/rsl_rl/spot_flat/2026-06-08_04-10-49/model_499.pt
 
@@ -62,7 +61,7 @@ Per-checkpoint config snapshots referenced in these notes are in
 
 ---
 
-## Checkpoint 4: Corrected 3 kg Mass_Inertia, 1000 Iterations
+## Checkpoint 4: Corrected 3 kg Mass/Inertia, 1000 Iterations
 
 **Checkpoint path:** logs/rsl_rl/spot_flat/2026-06-08_12-24-12/model_999.pt
 
@@ -74,7 +73,7 @@ Per-checkpoint config snapshots referenced in these notes are in
 
 ---
 
-## Checkpoint 5: Corrected 3 kg Mass_Inertia, 1000-Iteration Training
+## Checkpoint 5: Corrected 3 kg Mass/Inertia, 1000-Iteration Training
 
 **Checkpoint path:** logs/rsl_rl/spot_flat/2026-06-08_12-24-12/model_999.pt
 
@@ -370,7 +369,7 @@ Replay Checkpoint 17 again and manually rotate the camera around the robot. If t
 
 ---
 
-## Checkpoint 17: Experiement - Base-relative foot-height diagnostic
+## Checkpoint 17: Experiment: Base-relative foot-height diagnostic
 
 **Run name:** Base-relative foot-height diagnostic
 
@@ -406,7 +405,7 @@ No reward, training, policy, physics, observation, or action configuration chang
 
 ---
 
-## Checkpoint 17: Experiment - Foot-Height Diagnostic
+## Checkpoint 17: Experiment: Foot-Height Diagnostic
 
 Run name:
 
@@ -442,7 +441,9 @@ Measure all four foot z-heights over time during replay.
 
 ---
 
-## Checkpoint 17: Experiment - Lower Scaled Heading Drift Weight
+## Checkpoint 17: Experiment: Lower Scaled Heading Drift Weight
+
+Experiment - Lower Scaled Heading Drift Weight
 
 Problem:
 
@@ -524,7 +525,7 @@ Test scaled heading_drift at -0.035 while keeping rear_left_foot_xz_activity = 0
 
 ---
 
-## Checkpoint 17: Experiment - Rear-Left X_Z Activity + Heading Drift Penalty
+## Checkpoint 17: Experiment: Rear-Left X_Z Activity + Heading Drift Penalty
 
 Run name:
 
@@ -582,7 +583,7 @@ Run diagnostic on model_598.pt and compare rear-left x_range, rear-left z_range,
 
 ---
 
-## Checkpoint 17: Experiment - Rear-Left X_Z Activity with Heading-Drift Penalty
+## Checkpoint 17: Experiment: Rear-Left X_Z Activity with Heading-Drift Penalty
 
 Run name:
 
@@ -686,33 +687,23 @@ Do not continue from this checkpoint. Return to CP17 current best. The next expe
 
 ---
 
-## Checkpoint 17: Experiment - Scaled Heading Drift Weight 0
+## Checkpoint 17: Experiment: Scaled Heading Drift Weight 0.035
 
-Experiment - Scaled Heading Drift Weight 0.035
-
-Folder
-
-Checkpoint 17 Folder
-
-File name
-
-CP17 Experiment - Scaled Heading Drift Weight 0.035.docx
-
-Parent checkpoint
+**Parent checkpoint**
 
 Checkpoint 17 current best model:
 
 logs/rsl_rl/spot_flat/2026-06-15_05-57-07/model_299_better_walk_shape_slight_right_drift_left_yaw.pt
 
-Run name
+**Run name**
 
 rear_left_xz003_scaled_heading0035_from_current_best
 
-Final checkpoint tested
+**Final checkpoint tested**
 
 logs/rsl_rl/spot_flat/2026-06-17_06-34-56_rear_left_xz003_scaled_heading0035_from_current_best/model_598.pt
 
-Problem
+**Problem**
 
 Previous scaled heading-drift experiments showed a tradeoff.
 
@@ -722,33 +713,30 @@ When scaled heading_drift was reduced to -0.02, rear-left foot motion recovered,
 
 This means the useful heading_drift weight is probably between -0.02 and -0.05.
 
-Hypothesis
+**Hypothesis**
 
 A scaled heading_drift weight of -0.035 may provide a better balance between yaw control and rear-left foot movement.
 
 The heading penalty should be strong enough to reduce yaw drift, but not so strong that it suppresses rear-left stride and lift.
 
-Change I tested
+**Change I tested**
 
 heading_drift weight:
 
 -0.02 → -0.035
 
-Everything else stayed fixed
+**Everything else stayed fixed**
 
 rear_left_foot_xz_activity = 0.03lateral_velocity = -1.0base_angular_velocity = 1.8diagonal rewards = 0.0rear_foot_xz_velocity_symmetry = 0.0
 
-Expected result
+**Expected result**
 
-yaw mean_abs: better than the -0.02 run, worse than the -0.05 run, hopefully near or below 1.0°.
+- yaw mean_abs: better than the -0.02 run, worse than the -0.05 run, hopefully near or below 1.0°.
+- rear_left x_range: lower than the -0.02 run, higher than the -0.05 run, hopefully above 0.0063.
+- rear_left z_range: lower than the -0.02 run, higher than the -0.05 run, hopefully above 0.0050.
+- base_y mean_abs: should remain controlled, ideally not worse than about 0.043.
 
-rear_left x_range: lower than the -0.02 run, higher than the -0.05 run, hopefully above 0.0063.
-
-rear_left z_range: lower than the -0.02 run, higher than the -0.05 run, hopefully above 0.0050.
-
-base_y mean_abs: should remain controlled, ideally not worse than about 0.043.
-
-What could go wrong
+**What could go wrong**
 
 The heading penalty may still be too weak, causing yaw drift to remain too high.
 
@@ -756,25 +744,21 @@ The heading penalty may still be too strong, causing rear-left movement to drop 
 
 The robot may show good numbers but still exploit the reward visually by crab-walking, step-turning, or dragging the rear-left foot.
 
-Verification plan
+**Verification plan**
 
 Run diagnostic on model_598.pt and compare:
 
-rear_left x_range
-
-rear_left z_range
-
-yaw_deg mean_abs
-
-base_y mean_abs
-
-focused rear-left asymmetry comparison
+- rear_left x_range
+- rear_left z_range
+- yaw_deg mean_abs
+- base_y mean_abs
+- focused rear-left asymmetry comparison
 
 If the diagnostic looks promising, run visual replay.
 
 A model should not become a new checkpoint unless both diagnostic and visual replay pass.
 
-Diagnostic result
+**Diagnostic result**
 
 The -0.035 scaled heading_drift experiment produced the best balance so far in the scaled-heading series.
 
@@ -790,9 +774,9 @@ Yaw improved compared with the -0.02 run, but remained slightly above the ideal 
 
 yaw mean_abs = 1.1544° / 1.1015°
 
-Comparison with previous scaled-heading experiments
+**Comparison with previous scaled-heading experiments**
 
-heading_drift = -0.05
+**heading_drift = -0.05**
 
 Result:
 
@@ -806,7 +790,7 @@ Verdict:
 
 Rejected as new best.
 
-heading_drift = -0.02
+**heading_drift = -0.02**
 
 Result:
 
@@ -820,7 +804,7 @@ Verdict:
 
 Rejected as new best.
 
-heading_drift = -0.035
+**heading_drift = -0.035**
 
 Result:
 
@@ -830,7 +814,7 @@ Interpretation:
 
 This is the best balance so far. Rear-left stride and lift are above the CP17 baseline, and path_y is very controlled. Yaw is much better than the -0.02 run, but still slightly above the ideal target of under 1.0°.
 
-Good signs
+**Good signs**
 
 Rear-left stride and lift are above the CP17 baseline.
 
@@ -842,7 +826,7 @@ The robot completed full episodes without terrain_out_of_bounds termination.
 
 The reward setup was correct and matched the intended controlled experiment.
 
-Bad signs
+**Bad signs**
 
 Yaw mean_abs is still slightly above the ideal <1.0° target.
 
@@ -852,7 +836,7 @@ Diagnostic numbers alone are not enough to prove the gait is good.
 
 Visual replay is required to check for step-turning, crab-walk, rear-left dragging, or unnatural compensation.
 
-Keep or reject
+**Keep or reject**
 
 Candidate for visual replay.
 
@@ -862,7 +846,7 @@ Not Checkpoint 18 yet.
 
 Still part of Checkpoint 17 experiments.
 
-What I learned
+**What I learned**
 
 The scaled heading_drift reward has a real tradeoff.
 
@@ -874,21 +858,17 @@ At -0.035, the model gives the best balance so far: rear-left motion improves, p
 
 However, a model cannot become a new checkpoint based on diagnostic numbers alone. Visual replay is required.
 
-Next step
+**Next step**
 
 Run visual replay on model_598.pt.
 
 Visual replay should answer:
 
-Does it walk forward, or does it step-turn?
-
-Does the body face mostly forward?
-
-Does the rear-left foot visibly lift and swing, or still drag?
-
-Does it crab-walk sideways?
-
-Is it better than the CP17 current best visually?
+- Does it walk forward, or does it step-turn?
+- Does the body face mostly forward?
+- Does the rear-left foot visibly lift and swing, or still drag?
+- Does it crab-walk sideways?
+- Is it better than the CP17 current best visually?
 
 If visual replay shows clean forward walking with no step-turning, no crab-walk, and no rear-left dragging, this model can become a candidate for a new checkpoint.
 
@@ -912,11 +892,9 @@ Candidate for new checkpoint, but not perfect. Promotion depends on whether the 
 
 ---
 
-## Checkpoint 17: Experiment: Rear-Foot Symmetry Reward and Remaining Rear-Left Drag
+## Checkpoint 17: Experiment Log: Rear-Foot Symmetry Reward and Remaining Rear-Left Drag
 
-Experiment Log: Rear-Foot Symmetry Reward and Remaining Rear-Left Drag
-
-Context
+**Context**
 
 The previous best baseline was:
 
@@ -924,29 +902,26 @@ The previous best baseline was:
 
 This model had the most natural gait so far, but it still showed two main problems:
 
-The robot slowly drifted/yawed to the right.
-
-The rear-left foot appeared lower or dragging during walking.
+- The robot slowly drifted/yawed to the right.
+- The rear-left foot appeared lower or dragging during walking.
 
 Earlier diagnostics showed that the rear-left foot had a strong mean bias compared with the rear-right foot. The most suspicious joint was rear_left_foot, because its action mean and joint position mean were much more negative than rear_right_foot.
 
 Old baseline comparison:
 
-rear_left_foot vs rear_right_foot
-
-action_mean_delta ≈ -3.17
-
-joint_pos_mean_delta ≈ -0.132
+- rear_left_foot vs rear_right_foot
+- action_mean_delta ≈ -3.17
+- joint_pos_mean_delta ≈ -0.132
 
 The config/runtime diagnostic showed that joint limits and default positions were symmetric between the rear-left and rear-right foot joints, so the asymmetry was unlikely to be caused by a hardcoded default-position or joint-limit offset. The working hypothesis was that the learned policy had developed a biased rear-left foot command.
 
-Experiment 1: Rear-Foot Joint Symmetry Reward
+**Experiment 1: Rear-Foot Joint Symmetry Reward**
 
-Hypothesis
+**Hypothesis**
 
 If the rear-left foot dragging is partly caused by a learned rear-left foot joint mean bias, then adding a small rear-left/rear-right foot joint symmetry penalty should reduce the rear-left foot joint bias.
 
-Config Change
+**Config Change**
 
 A new reward function was added to flat_env_cfg.py:
 
@@ -992,7 +967,7 @@ params={
 
 The weight was intentionally small because this was a controlled experiment. The goal was to test whether a gentle symmetry penalty could reduce the rear-foot bias without overpowering the main walking rewards.
 
-Debugging Notes
+**Debugging Notes**
 
 The first attempted training run did not use the new reward because the reward patch had not actually landed in flat_env_cfg.py.
 
@@ -1014,7 +989,7 @@ wp.to_torch(joint_pos)
 
 After these fixes, a 5-iteration sanity check passed and the reward appeared in the reward table.
 
-Training Run
+**Training Run**
 
 Started from:
 
@@ -1040,13 +1015,13 @@ terrain_out_of_bounds = 0.0000
 
 This means the robot survived full episodes and did not go out of bounds during training.
 
-Diagnostic Result: model_299.pt
+**Diagnostic Result: model_299.pt**
 
 Diagnostic checkpoint:
 
 logs/rsl_rl/spot_flat/2026-06-15_05-10-51/model_299.pt
 
-Rear Foot Joint Symmetry Result
+**Rear Foot Joint Symmetry Result**
 
 Old baseline:
 
@@ -1076,7 +1051,7 @@ joint_pos_mean_delta = 0.0141
 
 This is a major numerical improvement. The rear-left foot joint mean bias was largely removed.
 
-New Compensation Problem
+**New Compensation Problem**
 
 Although the rear foot joint mean bias improved, the rear leg joints became more asymmetric:
 
@@ -1098,7 +1073,7 @@ joint_pos_mean_delta = 0.0934
 
 This suggests the policy may have compensated through the rear leg joints after the rear foot joints were forced to become more symmetric.
 
-Foot Height / Clearance Result
+**Foot Height / Clearance Result**
 
 Base-frame foot height showed that rear-left foot vertical range became very small:
 
@@ -1118,7 +1093,7 @@ This means the rear-left foot was moving much less vertically than the rear-righ
 
 Visual replay confirmed that the back-left foot still appeared to drag. The robot also still drifted to the right, while the head stayed mostly forward.
 
-Interpretation
+**Interpretation**
 
 The rear-foot joint symmetry reward was a partial success.
 
@@ -1142,7 +1117,7 @@ The remaining right drift is probably not mainly a yaw-heading issue. Since the 
 
 The rear-left drag is likely caused by rear-left limb motion as a whole, not only the rear-left foot joint mean. The rear-left foot has too little vertical motion, and the policy may be compensating through the rear-left/rear-right leg joints.
 
-Current Conclusion
+**Current Conclusion**
 
 Do not increase the rear-foot joint symmetry reward yet.
 
@@ -1156,7 +1131,7 @@ rear-left foot clearance / rear-left foot vertical lift
 
 instead of only targeting joint angle symmetry.
 
-Proposed Next Experiment
+**Proposed Next Experiment**
 
 Add a small reward or penalty that directly targets the rear-left foot link height/clearance in space.
 
@@ -1174,17 +1149,12 @@ logs/rsl_rl/spot_flat/2026-06-15_05-10-51/model_299.pt
 
 The next experiment should remain controlled:
 
-Keep rear_foot_joint_symmetry = -0.25.
-
-Add only one new rear-left clearance term.
-
-Start from the successful symmetry checkpoint.
-
-Run a 5-iteration sanity check first.
-
-If the reward loads and does not crash, run 300 iterations.
-
-Compare visual replay and diagnostic results against 2026-06-15_05-10-51/model_299.pt.
+- Keep rear_foot_joint_symmetry = -0.25.
+- Add only one new rear-left clearance term.
+- Start from the successful symmetry checkpoint.
+- Run a 5-iteration sanity check first.
+- If the reward loads and does not crash, run 300 iterations.
+- Compare visual replay and diagnostic results against 2026-06-15_05-10-51/model_299.pt.
 
 Success criteria:
 
@@ -1200,7 +1170,7 @@ Success criteria:
 
 ---
 
-## Checkpoint 17: Foot-Clearance 0
+## Checkpoint 17: Foot-Clearance 0.7 Continued Run / Best Balanced Gait Candidate
 
 **Run folder:** logs/rsl_rl/spot_flat/2026-06-09_03-07-45/
 
@@ -1278,27 +1248,27 @@ Modify or run a diagnostic script to print/log each foot’s vertical position o
 
 **Run ID:** Checkpoint 17 re-observationDate/time: Not recordedParent checkpoint: Checkpoint 17Checkpoint/model tested: logs/rsl_rl/spot_flat/2026-06-09_03-07-45/model_1000.ptConfig snapshot path: flat_env_cfg.py.checkpoint17_foot07_best_gait_model1000
 
-Code/config change
+**Code/config change**
 
 No code or config was changed during this test. This was a visual re-evaluation of a previously trained checkpoint.
 
-One main variable changed
+**One main variable changed**
 
 No training variable was changed. The purpose was observation only.
 
-Reason for the test
+**Reason for the test**
 
 I did not clearly remember what Checkpoint 17 model_1000.pt looked like, so I replayed it to observe the gait more carefully before making another reward or symmetry change.
 
-My hypothesis
+**My hypothesis**
 
 My hypothesis was that Checkpoint 17 model_1000.pt has the best natural gait so far, but slowly drifts to the right.
 
-Expected result
+**Expected result**
 
 I expected the robot to walk forward with a relatively smooth and full gait, but with some rightward drift near the end of the simulation.
 
-Visual observation
+**Visual observation**
 
 The robot walks forward with a fairly smooth stride. The back of the robot stays level, which is a good sign because the body does not appear to collapse, bounce badly, or drag. The stride length looks fairly natural and not extremely short or stiff.
 
@@ -1306,51 +1276,45 @@ However, the robot’s body path gradually drifts right. The yaw also turns cloc
 
 The front legs appear to be doing more of the work than the rear legs, but this is only a visual observation. I am not fully sure which leg is strongest or weakest yet.
 
-Quantitative evidence
+**Quantitative evidence**
 
 No new numerical measurement was collected in this observation. The current evidence is visual only.
 
 Useful measurements to collect next include:
 
-yaw rate during the walking phase
+- yaw rate during the walking phase
+- left/right lateral velocity
+- joint position trajectories
+- joint velocity trajectories
+- foot lift and foot placement timing
+- estimated stride length for each diagonal pair
+- front-left and rear-right coordination during the suspected pivot phase
 
-left/right lateral velocity
-
-joint position trajectories
-
-joint velocity trajectories
-
-foot lift and foot placement timing
-
-estimated stride length for each diagonal pair
-
-front-left and rear-right coordination during the suspected pivot phase
-
-Failure mode
+**Failure mode**
 
 The main failure mode appears to be slow clockwise/right yaw and rightward drift while walking forward. The suspected visual cause is an imbalance during the front-left + rear-right diagonal step, but this is not proven yet.
 
-What improved
+**What improved**
 
 Compared with earlier checkpoints, this model has one of the best overall walking forms so far. It has smoother stride quality, better forward movement, and less obvious foot dragging.
 
-What got worse / remaining issue
+**What got worse / remaining issue**
 
 The robot still does not maintain a straight heading. It gradually yaws and drifts right. The diagonal gait may be asymmetric, especially during the front-left + rear-right phase, but that needs measurement before changing rewards.
 
-What this proves
+**What this proves**
 
 This proves that Checkpoint 17 model_1000.pt is still a strong baseline checkpoint for gait quality and forward walking.
 
-What this does NOT prove
+**What this does NOT prove**
 
 This does not prove that the front-left leg is definitely the cause of the yaw. It also does not prove that stride length is unequal, because no foot trajectory, contact timing, or joint trajectory measurements were collected yet.
 
-Keep or reject
+**Keep or reject**
 
 Keep as the current best baseline checkpoint.
 
-Next experiment
+**Next experiment**
 
 Before changing rewards, improve camera control so the robot can be observed from multiple angles without the view snapping back. Then measure stride difference or diagonal-pair asymmetry using joint positions, joint velocities, or foot trajectory estimates.
 
@@ -1444,57 +1408,46 @@ Training log looks promising, but this does not prove better gait. Diagnostic mu
 
 ## Checkpoint 18: Current Best Confirmed Baseline
 
-Improved Rear-Left Lift with Better Path/Yaw Control
+**Improved Rear-Left Lift with Better Path/Yaw Control**
 
-Parent checkpoint
+**Parent checkpoint**
 
 Checkpoint 17 current best
 
-Official Checkpoint 18 model
+**Official Checkpoint 18 model**
 
 logs/rsl_rl/spot_flat/2026-06-17_06-34-56_rear_left_xz003_scaled_heading0035_from_current_best/model_598.pt
 
-Main configuration changes
+**Main configuration changes**
 
-heading_drift = -0.035
+- heading_drift = -0.035
+- rear_left_foot_xz_activity = 0.03
+- lateral_velocity = -1.0
+- base_angular_velocity = 1.8
 
-rear_left_foot_xz_activity = 0.03
-
-lateral_velocity = -1.0
-
-base_angular_velocity = 1.8
-
-Why this is promoted to Checkpoint 18
+**Why this is promoted to Checkpoint 18**
 
 This model was first labeled as a candidate because visual replay and diagnostics showed improved overall walking quality compared with Checkpoint 17. It is now promoted to official Checkpoint 18 after side-by-side comparison against later experimental branches.
 
 The model showed:
 
-Better overall gait stability than later branches
+- Better overall gait stability than later branches
+- Less visually concerning yaw than the X-only branch
+- More natural-looking movement than the front-right-overactivity branch
+- Better compromise between path control, yaw control, and rear-leg movement
+- No evidence that later reward stacking produced a cleaner gait
 
-Less visually concerning yaw than the X-only branch
+**Key diagnostic numbers**
 
-More natural-looking movement than the front-right-overactivity branch
+- rear_left x_range = 0.0079 / 0.0078
+- rear_left z_range = 0.0085 / 0.0085
+- rear_right z_range = 0.0200 / 0.0202
+- base_y mean_abs = 0.0176 / 0.0187
+- yaw mean_abs = 1.1544° / 1.1015°
 
-Better compromise between path control, yaw control, and rear-leg movement
+**Comparison against later branches**
 
-No evidence that later reward stacking produced a cleaner gait
-
-Key diagnostic numbers
-
-rear_left x_range = 0.0079 / 0.0078
-
-rear_left z_range = 0.0085 / 0.0085
-
-rear_right z_range = 0.0200 / 0.0202
-
-base_y mean_abs = 0.0176 / 0.0187
-
-yaw mean_abs = 1.1544° / 1.1015°
-
-Comparison against later branches
-
-Compared with X-only rear-left stride model
+**Compared with X-only rear-left stride model**
 
 **X-only model:** logs/rsl_rl/spot_flat/2026-06-18_22-15-12_rear_left_xonly003_heading0035_resume_from_750/model_899.pt
 
@@ -1502,7 +1455,7 @@ The X-only model improved path straightness and rear-left stride, but visual rep
 
 **Verdict:** keep as diagnostic branch, not current best.
 
-Compared with front-right-overactivity penalty model
+**Compared with front-right-overactivity penalty model**
 
 **Front-right-overactivity model:** logs/rsl_rl/spot_flat/2026-06-18_23-40-11_xonly003_front_right_overactivity003_from_xonly899/model_1198.pt
 
@@ -1510,7 +1463,7 @@ This branch worsened yaw/path and failed to fix the diagonal imbalance. The pena
 
 **Verdict:** reject.
 
-Honest limitation
+**Honest limitation**
 
 Checkpoint 18 is not a solved gait.
 
@@ -1518,7 +1471,7 @@ The rear-left leg is still weak compared with the rear-right leg. Rear-left x-ra
 
 The rear-left issue remains the main target for future experiments.
 
-Final status
+**Final status**
 
 Checkpoint 18 is now the official current best baseline.
 
@@ -1528,23 +1481,15 @@ It should be used as the parent checkpoint for the next controlled experiment.
 
 ---
 
-## Checkpoint 18: Experiment - Increase Rear-Left XZ Activity from 0.03 to 0.04
+## Checkpoint 18: Experiment: Increase Rear-Left XZ Activity from 0.03 to 0.04
 
-Folder
-
-Checkpoint 18 Candidate Folder
-
-File name
-
-CP18 Candidate Experiment - Rear-Left XZ Activity 0.04.docx
-
-Parent checkpoint
+**Parent checkpoint**
 
 Checkpoint 18 Candidate:
 
 logs/rsl_rl/spot_flat/2026-06-17_06-34-56_rear_left_xz003_scaled_heading0035_from_current_best/model_598.pt
 
-New experiment run
+**New experiment run**
 
 Run name:
 
@@ -1554,7 +1499,7 @@ Final checkpoint tested:
 
 logs/rsl_rl/spot_flat/2026-06-18_04-11-24_rear_left_xz004_heading0035_from_cp18_candidate/model_897.pt
 
-Problem
+**Problem**
 
 The Checkpoint 18 Candidate improved the robot’s walking compared with the previous Checkpoint 17 baseline. Visual replay showed less drifting, less yawing, and more back-leg movement.
 
@@ -1568,13 +1513,13 @@ rear_left x_range = 0.0079 / 0.0078rear_right x_range = 0.0188 / 0.0190
 
 This means rear-left lift and stride improved, but rear-right was still doing much more work.
 
-Hypothesis
+**Hypothesis**
 
 Increasing rear_left_foot_xz_activity from 0.03 to 0.04 may encourage the rear-left foot to lift and swing slightly more.
 
 The goal is not to make all legs perfectly equal. The goal is to improve useful rear-left movement without destroying the better heading and path control from the Checkpoint 18 Candidate.
 
-Why I thought this might work
+**Why I thought this might work**
 
 The Checkpoint 18 Candidate already had a better visual gait and better rear-left movement than earlier experiments. But rear-left was still weaker than rear-right.
 
@@ -1582,29 +1527,25 @@ Since the remaining problem was rear-left underactivity, a small increase in rea
 
 I also noticed from the physical robot that making front and back legs lift exactly the same can make the robot tip backward. Because of that, the goal was controlled rear-left improvement, not perfect equality.
 
-Change tested
+**Change tested**
 
 rear_left_foot_xz_activity:
 
 0.03 → 0.04
 
-Everything else stayed fixed
+**Everything else stayed fixed**
 
 heading_drift = -0.035lateral_velocity = -1.0base_angular_velocity = 1.8rear_foot_xz_velocity_symmetry = 0.0diagonal rewards = 0.0
 
-Expected result
+**Expected result**
 
-rear_left z_range:Slightly higher than 0.0085, hopefully around 0.0090–0.0110.
+- rear_left z_range:Slightly higher than 0.0085, hopefully around 0.0090–0.0110.
+- rear_left x_range:Slightly higher than 0.0078–0.0079, hopefully around 0.0085–0.0100.
+- yaw mean_abs:May get slightly worse than 1.10–1.15°, because stronger rear-left motion may disturb heading.
+- base_y mean_abs:May get slightly worse than 0.0176–0.0187, but should ideally remain below 0.03.
+- visual behavior:Rear-left foot should visibly lift and swing more. The robot should still walk forward with less drift than older experiments. Ideally, it should not step-turn, crab-walk, or pitch backward.
 
-rear_left x_range:Slightly higher than 0.0078–0.0079, hopefully around 0.0085–0.0100.
-
-yaw mean_abs:May get slightly worse than 1.10–1.15°, because stronger rear-left motion may disturb heading.
-
-base_y mean_abs:May get slightly worse than 0.0176–0.0187, but should ideally remain below 0.03.
-
-visual behavior:Rear-left foot should visibly lift and swing more. The robot should still walk forward with less drift than older experiments. Ideally, it should not step-turn, crab-walk, or pitch backward.
-
-What could go wrong
+**What could go wrong**
 
 The rear-left activity reward may make the robot exaggerate rear-left motion instead of walking naturally.
 
@@ -1618,7 +1559,7 @@ The robot may pitch backward or become less stable if the rear-left lift becomes
 
 The diagnostic may improve rear-left z_range but the visual gait may become worse.
 
-Training result
+**Training result**
 
 Training completed successfully.
 
@@ -1632,13 +1573,13 @@ rear_left_foot_xz_activity reward increased to 0.0083.heading_drift remained sma
 
 Training log looked promising, but diagnostic was required to confirm the gait.
 
-Diagnostic result
+**Diagnostic result**
 
 The reward setup was correct:
 
 heading_drift = -0.035rear_left_foot_xz_activity = 0.04lateral_velocity = -1.0base_angular_velocity = 1.8
 
-What improved
+**What improved**
 
 Rear-left vertical lift improved slightly.
 
@@ -1664,7 +1605,7 @@ rear_right z_range = 0.0149 / 0.0162
 
 This means rear-left/rear-right vertical lift asymmetry became less extreme.
 
-What got worse
+**What got worse**
 
 Rear-left forward/back stride got worse.
 
@@ -1696,7 +1637,7 @@ base_y mean_abs = 0.0148 / 0.0144
 
 So the robot did not drift sideways badly, but it yawed more. That suggests the body orientation became worse even though the robot stayed close to the path.
 
-Interpretation
+**Interpretation**
 
 Increasing rear_left_foot_xz_activity from 0.03 to 0.04 improved rear-left vertical lift slightly and reduced rear-left/rear-right vertical lift imbalance.
 
@@ -1706,7 +1647,7 @@ This means the extra reward encouraged more vertical rear-left activity, but not
 
 The model became more active but not more useful.
 
-Keep or reject
+**Keep or reject**
 
 Reject.
 
@@ -1718,7 +1659,7 @@ The better model remains:
 
 logs/rsl_rl/spot_flat/2026-06-17_06-34-56_rear_left_xz003_scaled_heading0035_from_current_best/model_598.pt
 
-What I learned
+**What I learned**
 
 More rear-left activity is not automatically better.
 
@@ -1730,7 +1671,7 @@ The rear-left activity reward has a tradeoff. Increasing it too much may create 
 
 Therefore, the next experiment should not simply increase rear_left_foot_xz_activity again.
 
-Next step
+**Next step**
 
 Return to the Checkpoint 18 Candidate.
 
@@ -1740,17 +1681,13 @@ The next experiment should target useful rear-left stride or rear-left/rear-righ
 
 Possible future directions:
 
-Separate rear-left X stride reward from rear-left Z lift reward.
+- Separate rear-left X stride reward from rear-left Z lift reward.
+- Reward rear-left forward/back movement more than vertical lift.
+- Penalize excessive rear-right dominance carefully.
+- Add a better symmetry target that does not destroy yaw.
+- Compare visual replay before trusting any new diagnostic improvement.
 
-Reward rear-left forward/back movement more than vertical lift.
-
-Penalize excessive rear-right dominance carefully.
-
-Add a better symmetry target that does not destroy yaw.
-
-Compare visual replay before trusting any new diagnostic improvement.
-
-Current status after this experiment
+**Current status after this experiment**
 
 Checkpoint 18 Candidate remains the best model so far.
 
@@ -1758,11 +1695,9 @@ This 0.04 experiment is rejected but valuable because it shows the limit of simp
 
 ---
 
-## Checkpoint 18: Experiment - Rear-Right Overdominance Penalty from CP18
+## Checkpoint 18: Experiment Documentation: Rear-Right Overdominance Penalty from CP18
 
-Experiment Documentation: Rear-Right Overdominance Penalty from CP18
-
-Status
+**Status**
 
 **Type:** Experiment, not checkpointPromotion status: Not promotedCurrent official best remains: CP18 model_598
 
@@ -1773,8 +1708,6 @@ logs/rsl_rl/spot_flat/2026-06-17_06-34-56_rear_left_xz003_scaled_heading0035_fro
 Experiment model:
 
 logs/rsl_rl/spot_flat/2026-06-19_05-45-16_exp_rear_right_overdominance003_from_cp18/model_897.pt
-
-1. Problem
 
 CP18 is the current best walking baseline, but it still has a clear rear-leg amplitude imbalance.
 
@@ -1802,8 +1735,6 @@ So the problem is not simply “make rear-left move more.” The real problem is
 
 Can we reduce rear-right overdominance without damaging body path, yaw, or lateral stance geometry?
 
-2. Hypothesis
-
 The hypothesis was:
 
 CP18’s rear-left/rear-right amplitude imbalance is partly caused by rear-right overdominance.
@@ -1821,8 +1752,6 @@ rear_right_overdominance_xz penalty
 → preserve or improve body path/yaw
 
 This was an asymmetric penalty, not a symmetric equality penalty. The goal was not to make both rear legs weak. The goal was to reduce rear-right dominance only when rear-right exceeded rear-left.
-
-3. Evidence Before Change
 
 CP18 showed strong rear X/Z amplitude imbalance.
 
@@ -1853,8 +1782,6 @@ front center_offset ≈ -0.0008 / -0.0008
 rear center_offset  ≈ -0.0017 / -0.0017
 
 So CP18’s main visible gait issue was rear X/Z amplitude imbalance, not obviously bad lateral foot mean placement.
-
-4. Change
 
 Added a new reward term:
 
@@ -1890,8 +1817,6 @@ Final model tested:
 
 model_897.pt
 
-5. Prediction
-
 If the hypothesis was correct, then compared with CP18:
 
 Expected improvements:
@@ -1916,9 +1841,7 @@ Promotion condition:
 
 The experiment can only become a checkpoint if it improves rear amplitude balance without worsening path/yaw/stance geometry.
 
-6. Result
-
-6.1 Rear Z amplitude improved
+**6.1 Rear Z amplitude improved**
 
 CP18:
 
@@ -1942,7 +1865,7 @@ Rear Z amplitude gap shrank by roughly half.
 
 This supports the amplitude-imbalance part of the hypothesis.
 
-6.2 Rear X amplitude improved
+**6.2 Rear X amplitude improved**
 
 CP18:
 
@@ -1966,7 +1889,7 @@ Rear X amplitude gap also shrank by roughly half.
 
 The reward changed the intended rear X/Z amplitude mechanism.
 
-6.3 Path got worse
+**6.3 Path got worse**
 
 CP18:
 
@@ -1982,7 +1905,7 @@ The robot drifted sideways more.
 
 Even though rear X/Z amplitude balance improved, body path tracking worsened.
 
-6.4 Yaw got worse slightly
+**6.4 Yaw got worse slightly**
 
 CP18:
 
@@ -1998,7 +1921,7 @@ Yaw was not catastrophically worse, but it did worsen.
 
 The experiment did not beat CP18 in body orientation behavior.
 
-6.5 Foot-Y stance geometry changed
+**6.5 Foot-Y stance geometry changed**
 
 CP18 front stance width:
 
@@ -2052,7 +1975,7 @@ The reward did not only change rear X/Z amplitude.
 
 It also changed lateral stance geometry.
 
-6.6 Joint/action evidence points toward shoulder/hip compensation
+**6.6 Joint/action evidence points toward shoulder/hip compensation**
 
 The shoulder/hip abduction joints are the joints most directly responsible for lateral foot placement.
 
@@ -2075,8 +1998,6 @@ Interpretation:
 The experiment caused a large front-right shoulder compensation.
 
 This likely contributed to the widened front stance and shifted lateral foot placement.
-
-7. Conclusion
 
 The experiment partially supported the hypothesis.
 
@@ -2116,8 +2037,6 @@ Model rejected.
 
 Do not call this CP19.
 
-8. Engineering Interpretation
-
 The robot’s gait problem is not pure rear X/Z amplitude imbalance.
 
 The better current diagnosis is:
@@ -2147,8 +2066,6 @@ Foot amplitude is kinematics.
 Yaw/path behavior is body dynamics.
 
 A more balanced foot trajectory does not automatically mean better body motion.
-
-9. Next Experiment / Next Diagnostic
 
 Do not immediately add another reward.
 
@@ -2208,8 +2125,6 @@ The overdominance reward improves rear X/Z amplitude but causes shoulder/hip abd
 
 Next isolated experiment should not happen until the shoulder/yaw mechanism is measured.
 
-10. Documentation Quality Rating
-
 This experiment is valuable because it produced a real mechanism result.
 
 It answered:
@@ -2230,7 +2145,7 @@ This is a serious robotics result, not just an IsaacLab reward tweak.
 
 ---
 
-## Checkpoint 18: Experiment - Rear-left X-only stride activity
+## Checkpoint 18: Experiment: Rear-left X-only stride activity
 
 Experiment:
 
@@ -2332,7 +2247,7 @@ The X-only reward improved rear-left foot stride, but it may not have fixed the 
 
 ---
 
-## Checkpoint 18: Experiment - Rear-left / front-right foot joint activity balance
+## Checkpoint 18: Experiment: Rear-left / front-right foot joint activity balance
 
 **Experiment:** Rear-left / front-right foot joint activity balance
 
@@ -2354,15 +2269,11 @@ Keep rear_left_foot_x_activity active, because the X-only reward improved rear-l
 
 Expected result:
 
-rear_left_foot joint_pos_range:May increase slightly or stay near 0.08.
-
-front_right_foot joint_pos_range:Should decrease slightly from about 0.14 if front-right over-pushing is reduced.
-
-rear_left x_range:Should stay near 0.0107 / 0.0108 and should not collapse below 0.008.
-
-yaw mean_abs:Hopefully improves below about 1.1°, or at least does not get worse.
-
-visual behavior:The robot should still walk forward. The front-right foot should look less aggressive. Rear-left/front-right diagonal motion should look more balanced. The robot should yaw less left.
+- rear_left_foot joint_pos_range:May increase slightly or stay near 0.08.
+- front_right_foot joint_pos_range:Should decrease slightly from about 0.14 if front-right over-pushing is reduced.
+- rear_left x_range:Should stay near 0.0107 / 0.0108 and should not collapse below 0.008.
+- yaw mean_abs:Hopefully improves below about 1.1°, or at least does not get worse.
+- visual behavior:The robot should still walk forward. The front-right foot should look less aggressive. Rear-left/front-right diagonal motion should look more balanced. The robot should yaw less left.
 
 **What could go wrong:** The penalty may reduce front-right activity too much and weaken propulsion.Rear-left x_range may collapse.Yaw may still remain.The robot may walk slower or look less natural.The policy may find another compensation pattern instead of truly improving diagonal balance.
 
